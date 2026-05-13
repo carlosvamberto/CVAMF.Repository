@@ -29,9 +29,50 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         return await _dbSet.FindAsync(new object[] { id }, cancellationToken);
     }
 
+    public virtual async Task<TEntity?> GetByIdAsync(
+        TKey id,
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? includes = null,
+        bool asNoTracking = false,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<TEntity> query = _dbSet;
+
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        if (includes != null)
+        {
+            query = includes(query);
+        }
+
+        return await query.FirstOrDefaultAsync(e => e.Id.Equals(id), cancellationToken);
+    }
+
     public virtual async Task<IEnumerable<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbSet.ToListAsync(cancellationToken);
+    }
+
+    public virtual async Task<IEnumerable<TEntity>> GetAllAsync(
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? includes = null,
+        bool asNoTracking = false,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<TEntity> query = _dbSet;
+
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        if (includes != null)
+        {
+            query = includes(query);
+        }
+
+        return await query.ToListAsync(cancellationToken);
     }
 
     public virtual async Task<IEnumerable<TEntity>> GetAsync(
@@ -40,6 +81,38 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         CancellationToken cancellationToken = default)
     {
         IQueryable<TEntity> query = _dbSet;
+
+        if (filter != null)
+        {
+            query = query.Where(filter);
+        }
+
+        if (orderBy != null)
+        {
+            query = orderBy(query);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public virtual async Task<IEnumerable<TEntity>> GetAsync(
+        Expression<Func<TEntity, bool>>? filter = null,
+        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? includes = null,
+        bool asNoTracking = false,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<TEntity> query = _dbSet;
+
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        if (includes != null)
+        {
+            query = includes(query);
+        }
 
         if (filter != null)
         {
@@ -95,11 +168,85 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         };
     }
 
+    public virtual async Task<PagedResult<TEntity>> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        Expression<Func<TEntity, bool>>? filter = null,
+        Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>>? orderBy = null,
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? includes = null,
+        bool asNoTracking = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1)
+            throw new ArgumentException("Page number must be greater than 0", nameof(pageNumber));
+
+        if (pageSize < 1)
+            throw new ArgumentException("Page size must be greater than 0", nameof(pageSize));
+
+        IQueryable<TEntity> query = _dbSet;
+
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        if (includes != null)
+        {
+            query = includes(query);
+        }
+
+        if (filter != null)
+        {
+            query = query.Where(filter);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        if (orderBy != null)
+        {
+            query = orderBy(query);
+        }
+
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<TEntity>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
+
     public virtual async Task<TEntity?> GetFirstOrDefaultAsync(
         Expression<Func<TEntity, bool>> filter,
         CancellationToken cancellationToken = default)
     {
         return await _dbSet.FirstOrDefaultAsync(filter, cancellationToken);
+    }
+
+    public virtual async Task<TEntity?> GetFirstOrDefaultAsync(
+        Expression<Func<TEntity, bool>> filter,
+        Func<IQueryable<TEntity>, IQueryable<TEntity>>? includes = null,
+        bool asNoTracking = false,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<TEntity> query = _dbSet;
+
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        if (includes != null)
+        {
+            query = includes(query);
+        }
+
+        return await query.FirstOrDefaultAsync(filter, cancellationToken);
     }
 
     public virtual async Task<bool> AnyAsync(
@@ -130,10 +277,46 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         return entity;
     }
 
+    public virtual async Task<TEntity> AddAsync(TEntity entity, string? createdBy, CancellationToken cancellationToken = default)
+    {
+        if (entity == null)
+            throw new ArgumentNullException(nameof(entity));
+
+        // Set audit fields if entity implements IAuditable
+        if (entity is IAuditable auditable)
+        {
+            auditable.CreatedAt = DateTime.UtcNow;
+            auditable.CreatedBy = createdBy;
+        }
+
+        await _dbSet.AddAsync(entity, cancellationToken);
+        return entity;
+    }
+
     public virtual async Task AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
+
+        await _dbSet.AddRangeAsync(entities, cancellationToken);
+    }
+
+    public virtual async Task AddRangeAsync(IEnumerable<TEntity> entities, string? createdBy, CancellationToken cancellationToken = default)
+    {
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+
+        var now = DateTime.UtcNow;
+
+        foreach (var entity in entities)
+        {
+            // Set audit fields if entity implements IAuditable
+            if (entity is IAuditable auditable)
+            {
+                auditable.CreatedAt = now;
+                auditable.CreatedBy = createdBy;
+            }
+        }
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
     }
@@ -147,10 +330,47 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         return Task.CompletedTask;
     }
 
+    public virtual Task UpdateAsync(TEntity entity, string? updatedBy, CancellationToken cancellationToken = default)
+    {
+        if (entity == null)
+            throw new ArgumentNullException(nameof(entity));
+
+        // Set audit fields if entity implements IAuditable
+        if (entity is IAuditable auditable)
+        {
+            auditable.UpdatedAt = DateTime.UtcNow;
+            auditable.UpdatedBy = updatedBy;
+        }
+
+        _dbSet.Update(entity);
+        return Task.CompletedTask;
+    }
+
     public virtual Task UpdateRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
+
+        _dbSet.UpdateRange(entities);
+        return Task.CompletedTask;
+    }
+
+    public virtual Task UpdateRangeAsync(IEnumerable<TEntity> entities, string? updatedBy, CancellationToken cancellationToken = default)
+    {
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+
+        var now = DateTime.UtcNow;
+
+        foreach (var entity in entities)
+        {
+            // Set audit fields if entity implements IAuditable
+            if (entity is IAuditable auditable)
+            {
+                auditable.UpdatedAt = now;
+                auditable.UpdatedBy = updatedBy;
+            }
+        }
 
         _dbSet.UpdateRange(entities);
         return Task.CompletedTask;
@@ -181,6 +401,99 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 
         _dbSet.RemoveRange(entities);
         return Task.CompletedTask;
+    }
+
+    public virtual Task<bool> SoftDeleteAsync(TEntity entity, string? deletedBy = null, CancellationToken cancellationToken = default)
+    {
+        if (entity == null)
+            throw new ArgumentNullException(nameof(entity));
+
+        // Try ISoftDeletable first (IsDeleted property)
+        if (entity is ISoftDeletable softDeletable)
+        {
+            softDeletable.IsDeleted = true;
+            softDeletable.DeletedAt = DateTime.UtcNow;
+            softDeletable.DeletedBy = deletedBy;
+            _dbSet.Update(entity);
+            return Task.FromResult(true);
+        }
+
+        // Try ISoftDeletableAlternative (Deleted property)
+        if (entity is ISoftDeletableAlternative softDeletableAlt)
+        {
+            softDeletableAlt.Deleted = true;
+            softDeletableAlt.DeletedAt = DateTime.UtcNow;
+            softDeletableAlt.DeletedBy = deletedBy;
+            _dbSet.Update(entity);
+            return Task.FromResult(true);
+        }
+
+        // Entity doesn't support soft delete
+        return Task.FromResult(false);
+    }
+
+    public virtual async Task<bool> SoftDeleteAsync(TKey id, string? deletedBy = null, CancellationToken cancellationToken = default)
+    {
+        var entity = await GetByIdAsync(id, cancellationToken);
+        if (entity == null)
+            return false;
+
+        return await SoftDeleteAsync(entity, deletedBy, cancellationToken);
+    }
+
+    public virtual async Task<int> SoftDeleteRangeAsync(IEnumerable<TEntity> entities, string? deletedBy = null, CancellationToken cancellationToken = default)
+    {
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+
+        var count = 0;
+        foreach (var entity in entities)
+        {
+            if (await SoftDeleteAsync(entity, deletedBy, cancellationToken))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    public virtual Task<bool> RestoreAsync(TEntity entity, CancellationToken cancellationToken = default)
+    {
+        if (entity == null)
+            throw new ArgumentNullException(nameof(entity));
+
+        // Try ISoftDeletable first (IsDeleted property)
+        if (entity is ISoftDeletable softDeletable)
+        {
+            softDeletable.IsDeleted = false;
+            softDeletable.DeletedAt = null;
+            softDeletable.DeletedBy = null;
+            _dbSet.Update(entity);
+            return Task.FromResult(true);
+        }
+
+        // Try ISoftDeletableAlternative (Deleted property)
+        if (entity is ISoftDeletableAlternative softDeletableAlt)
+        {
+            softDeletableAlt.Deleted = false;
+            softDeletableAlt.DeletedAt = null;
+            softDeletableAlt.DeletedBy = null;
+            _dbSet.Update(entity);
+            return Task.FromResult(true);
+        }
+
+        // Entity doesn't support soft delete
+        return Task.FromResult(false);
+    }
+
+    public virtual async Task<bool> RestoreAsync(TKey id, CancellationToken cancellationToken = default)
+    {
+        var entity = await GetByIdAsync(id, cancellationToken);
+        if (entity == null)
+            return false;
+
+        return await RestoreAsync(entity, cancellationToken);
     }
 
     public virtual async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

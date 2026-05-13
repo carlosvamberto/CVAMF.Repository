@@ -104,7 +104,7 @@ public class OrderProcessingService
             // Validate and reserve stock
             foreach (var item in items)
             {
-                var product = await productRepo.GetByIdAsync(item.ProductId);
+                var product = await productRepo.GetByIdAsync(item.ProductId, includes: null);
 
                 if (product == null)
                     throw new InvalidOperationException(
@@ -235,7 +235,7 @@ public class OrderProcessingService
             var productRepo = _unitOfWork.Repository<Product, Guid>();
 
             // Get order
-            var order = await orderRepo.GetByIdAsync(orderId);
+            var order = await orderRepo.GetByIdAsync(orderId, includes: null);
             if (order == null)
                 throw new InvalidOperationException("Order not found");
 
@@ -244,12 +244,14 @@ public class OrderProcessingService
 
             // Get order items
             var items = await itemRepo.GetAsync(
-                filter: i => i.OrderId == orderId);
+                filter: i => i.OrderId == orderId,
+                orderBy: null,
+                includes: null);
 
             // Restore stock
             foreach (var item in items)
             {
-                var product = await productRepo.GetByIdAsync(item.ProductId);
+                var product = await productRepo.GetByIdAsync(item.ProductId, includes: null);
                 if (product != null)
                 {
                     product.Stock += item.Quantity;
@@ -283,7 +285,8 @@ public class OrderProcessingService
 
             // Get source inventory
             var sourceInventory = await inventoryRepo.GetFirstOrDefaultAsync(
-                i => i.WarehouseId == fromWarehouseId && i.ProductId == productId);
+                i => i.WarehouseId == fromWarehouseId && i.ProductId == productId,
+                includes: null);
 
             if (sourceInventory == null || sourceInventory.Quantity < quantity)
                 throw new InvalidOperationException("Insufficient inventory in source warehouse");
@@ -294,7 +297,8 @@ public class OrderProcessingService
 
             // Get or create destination inventory
             var destInventory = await inventoryRepo.GetFirstOrDefaultAsync(
-                i => i.WarehouseId == toWarehouseId && i.ProductId == productId);
+                i => i.WarehouseId == toWarehouseId && i.ProductId == productId,
+                includes: null);
 
             if (destInventory == null)
             {
