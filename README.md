@@ -5,10 +5,12 @@ Generic Repository Pattern implementation for Entity Framework Core with support
 ## Features
 
 - ✅ Generic Repository Pattern for EF Core
+- ✅ **Unit of Work pattern with transaction support**
 - ✅ Support for Guid and Int primary keys
 - ✅ Filtering with Expression Functions
 - ✅ Optional pagination
 - ✅ Full CRUD operations
+- ✅ **Automatic transaction management**
 - ✅ Async/await support
 - ✅ Easy dependency injection integration
 - ✅ .NET 10 compatible
@@ -107,6 +109,8 @@ public class ApplicationDbContext : DbContext
 
 ### 3. Register services in Program.cs
 
+**Option 1: Using Repositories only**
+
 ```csharp
 using CVAMF.Repository.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -123,6 +127,29 @@ builder.Services.AddRepositories();
 // Add your services
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<CategoryService>();
+
+var app = builder.Build();
+app.Run();
+```
+
+**Option 2: Using Unit of Work (Recommended for complex scenarios)**
+
+```csharp
+using CVAMF.Repository.Extensions;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add DbContext
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Add both Repositories and Unit of Work
+builder.Services.AddRepositoriesWithUnitOfWork<ApplicationDbContext>();
+
+// Add your services
+builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<ProductService>();
 
 var app = builder.Build();
 app.Run();
@@ -594,7 +621,176 @@ public class CategoryService
 
 ## Advanced Scenarios
 
-### Transaction Example
+### Using Unit of Work for Complex Transactions
+
+The **Unit of Work** pattern is ideal when you need to coordinate multiple repositories in a single transaction. This ensures data consistency across multiple operations.
+
+#### Simple Transaction Example
+
+```csharp
+public class OrderService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<OrderService> _logger;
+
+    public OrderService(IUnitOfWork unitOfWork, ILogger<OrderService> logger)
+    {
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+    }
+
+    public async Task<Order> CreateOrderAsync(Order order, List<OrderItem> items)
+    {
+        return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            // Get repositories
+            var orderRepo = _unitOfWork.Repository<Order, Guid>();
+            var itemRepo = _unitOfWork.Repository<OrderItem, int>();
+            var productRepo = _unitOfWork.Repository<Product, Guid>();
+
+            // Create order
+            await orderRepo.AddAsync(order);
+
+            // Add order items and update stock
+            foreach (var item in items)
+            {
+                var product = await productRepo.GetByIdAsync(item.ProductId);
+
+                if (product == null)
+                    throw new InvalidOperationException($"Product {item.ProductId} not found");
+
+                if (product.Stock < item.Quantity)
+                    throw new InvalidOperationException($"Insufficient stock for {product.Name}");
+
+                // Update stock
+                product.Stock -= item.Quantity;
+                await productRepo.UpdateAsync(product);
+
+                // Add order item
+                item.OrderId = order.Id;
+                await itemRepo.AddAsync(item);
+            }
+
+            // All operations are committed together
+            // If any fails, all are rolled back automatically
+            return order;
+        });
+    }
+}
+```
+
+#### Manual Transaction Control
+
+```csharp
+public async Task<bool> ProcessComplexOrderAsync(Order order)
+{
+    await using var transaction = await _unitOfWork.BeginTransactionAsync();
+
+    try
+    {
+        var orderRepo = _unitOfWork.Repository<Order, Guid>();
+        var inventoryRepo = _unitOfWork.Repository<Inventory, Guid>();
+
+        // Step 1: Create order
+        await orderRepo.AddAsync(order);
+        await _unitOfWork.SaveChangesAsync();
+
+        // Step 2: Update inventory
+        // ... inventory operations
+        await _unitOfWork.SaveChangesAsync();
+
+        // Step 3: Process payment
+        // ... payment operations
+        await _unitOfWork.SaveChangesAsync();
+
+        // Commit if everything succeeded
+        await transaction.CommitAsync();
+        return true;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error processing order");
+        await transaction.RollbackAsync();
+        return false;
+    }
+}
+```
+
+#### Multiple Repositories Coordination
+
+```csharp
+public async Task<bool> TransferInventoryAsync(Guid fromWarehouseId, Guid toWarehouseId, Guid productId, int quantity)
+{
+    return await _unitOfWork.ExecuteInTransactionAsync(async () =>
+    {
+        var warehouseRepo = _unitOfWork.Repository<Warehouse, Guid>();
+        var inventoryRepo = _unitOfWork.Repository<Inventory, Guid>();
+        var logRepo = _unitOfWork.Repository<InventoryLog, int>();
+
+        var fromWarehouse = await warehouseRepo.GetByIdAsync(fromWarehouseId);
+        var toWarehouse = await warehouseRepo.GetByIdAsync(toWarehouseId);
+
+        if (fromWarehouse == null || toWarehouse == null)
+            throw new InvalidOperationException("Warehouse not found");
+
+        // Deduct from source
+        var sourceInventory = await inventoryRepo.GetFirstOrDefaultAsync(
+            i => i.WarehouseId == fromWarehouseId && i.ProductId == productId);
+
+        if (sourceInventory == null || sourceInventory.Quantity < quantity)
+            throw new InvalidOperationException("Insufficient inventory");
+
+        sourceInventory.Quantity -= quantity;
+        await inventoryRepo.UpdateAsync(sourceInventory);
+
+        // Add to destination
+        var destInventory = await inventoryRepo.GetFirstOrDefaultAsync(
+            i => i.WarehouseId == toWarehouseId && i.ProductId == productId);
+
+        if (destInventory == null)
+        {
+            destInventory = new Inventory
+            {
+                Id = Guid.NewGuid(),
+                WarehouseId = toWarehouseId,
+                ProductId = productId,
+                Quantity = quantity
+            };
+            await inventoryRepo.AddAsync(destInventory);
+        }
+        else
+        {
+            destInventory.Quantity += quantity;
+            await inventoryRepo.UpdateAsync(destInventory);
+        }
+
+        // Log the transfer
+        await logRepo.AddAsync(new InventoryLog
+        {
+            ProductId = productId,
+            FromWarehouseId = fromWarehouseId,
+            ToWarehouseId = toWarehouseId,
+            Quantity = quantity,
+            TransferDate = DateTime.UtcNow
+        });
+
+        return true;
+    });
+}
+```
+
+### 📚 Complete Unit of Work Documentation
+
+For detailed examples and advanced usage patterns, see **[UNITOFWORK_USAGE.md](UNITOFWORK_USAGE.md)** which includes:
+
+- ✅ Basic setup and configuration
+- ✅ Transaction management strategies
+- ✅ Error handling patterns
+- ✅ Nested transactions
+- ✅ API controller examples
+- ✅ Best practices and performance tips
+
+### Transaction Example (Without Unit of Work)
 
 ```csharp
 public async Task<bool> TransferStock(Guid fromProductId, Guid toProductId, int quantity)
