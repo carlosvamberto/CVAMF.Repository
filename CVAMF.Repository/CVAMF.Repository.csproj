@@ -1,23 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>CVAMF.Repository</PackageId>
-    <Version>1.4.0</Version>
+    <Version>1.4.2</Version>
     <Authors>Carlos Vamberto Filho</Authors>
     <Company>CVAMF</Company>
-    <Description>Generic Repository Pattern implementation for Entity Framework Core with support for filters, pagination, Unit of Work pattern with transaction management, Include (Eager Loading) for related entities, AsNoTracking for performance optimization, Soft Delete with flexible field naming, optional Audit Fields tracking, and multiple primary key types (Guid and Int).</Description>
-    <PackageTags>repository;ef-core;entity-framework;generic-repository;pattern;unit-of-work;transaction;uow;include;eager-loading;asnotracking;performance;soft-delete;audit;audit-trail;tracking</PackageTags>
+    <Description>Generic Repository Pattern implementation for Entity Framework Core with support for filters, pagination, Unit of Work pattern with transaction management, Include (Eager Loading) for related entities, AsNoTracking for performance optimization, Soft Delete with flexible field naming, optional Audit Fields tracking, and multiple primary key types (Guid and Int). Compatible with .NET 9.0 and 10.0.</Description>
+    <PackageTags>repository;ef-core;entity-framework;generic-repository;pattern;unit-of-work;transaction;uow;include;eager-loading;asnotracking;performance;soft-delete;audit;audit-trail;tracking;net9;net10;multi-target</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/carlosvamberto/CVAMF.Repository</RepositoryUrl>
     <PackageProjectUrl>https://github.com/carlosvamberto/CVAMF.Repository</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageReleaseNotes>
+## v1.4.2
+- 🎨 **Package Icon**: Added custom icon for better visibility on NuGet.org
+  - 128x128 pixels, optimized to 23 KB
+  - Displays on NuGet package listing and Visual Studio package manager
+  - Professional branding for the package
+
+## v1.4.1
+- 🎯 **Multi-Targeting Support**: Now supports .NET 9.0 and 10.0
+  - Single package works across both .NET versions
+  - Automatic version selection based on your project's target framework
+  - EF Core 9.x for .NET 9.0, EF Core 10.x for .NET 10.0
+  - Zero configuration required - NuGet handles everything automatically
+  - Package contains optimized builds for each framework
+  - Documentation: MULTITARGETING.md
+
 ## v1.4.0
-- **Audit Fields Support**: Optional automatic tracking (CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)
+- 📝 **Audit Fields Support**: Optional automatic tracking (CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)
   - `IAuditable` interface for entities requiring audit tracking
   - Optional parameters in AddAsync, AddRangeAsync, UpdateAsync, UpdateRangeAsync
   - Base classes: EntityBaseAuditable, EntityBaseAuditableInt
@@ -28,12 +44,12 @@
   - Documentation: AUDIT_USAGE.md
 
 ## v1.3.0
-- **AsNoTracking Support**: 30-40% performance improvement for read-only queries
+- ⚡ **AsNoTracking Support**: 30-40% performance improvement for read-only queries
   - All query methods (GetByIdAsync, GetAllAsync, GetAsync, GetPagedAsync, GetFirstOrDefaultAsync) support `asNoTracking` parameter
   - Ideal for lists, pagination, API GET endpoints, and display-only scenarios
   - Documentation: ASNOTRACKING_USAGE.md
 
-- **Soft Delete Support**: Flexible field naming (IsDeleted or Deleted)
+- 🗑️ **Soft Delete Support**: Flexible field naming (IsDeleted or Deleted)
   - `ISoftDeletable` interface for entities using `IsDeleted` property
   - `ISoftDeletableAlternative` interface for entities using `Deleted` property
   - Base classes: EntityBaseSoftDelete, EntityBaseSoftDeleteInt, EntityBaseSoftDeleteAlt, EntityBaseSoftDeleteAltInt
@@ -73,9 +89,17 @@
 
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!-- EF Core packages for .NET 9.0 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+  </ItemGroup>
+
+  <!-- EF Core packages for .NET 10.0 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
   </ItemGroup>

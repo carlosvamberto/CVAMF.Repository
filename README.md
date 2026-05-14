@@ -10,6 +10,7 @@ Generic Repository Pattern implementation for Entity Framework Core with support
 - ✅ **AsNoTracking for 30-40% faster read-only queries**
 - ✅ **Soft Delete with flexible field naming (IsDeleted or Deleted)**
 - ✅ **Audit Fields (optional CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)**
+- ✅ **Multi-Targeting: Compatible with .NET 9.0 and 10.0**
 - ✅ Support for Guid and Int primary keys
 - ✅ Filtering with Expression Functions
 - ✅ Optional pagination
@@ -17,7 +18,6 @@ Generic Repository Pattern implementation for Entity Framework Core with support
 - ✅ **Automatic transaction management**
 - ✅ Async/await support
 - ✅ Easy dependency injection integration
-- ✅ .NET 10 compatible
 
 ## Installation
 
@@ -30,6 +30,17 @@ Or via NuGet Package Manager:
 ```
 Install-Package CVAMF.Repository
 ```
+
+### Compatibility
+
+This package supports **multiple .NET versions** through multi-targeting:
+
+- ✅ **.NET 9.0** (with EF Core 9.x)
+- ✅ **.NET 10.0** (with EF Core 10.x)
+
+The correct version is **automatically selected** based on your project's target framework. No additional configuration needed!
+
+📖 For more details on multi-targeting, see **[MULTITARGETING.md](MULTITARGETING.md)**.
 
 ## Quick Start
 
