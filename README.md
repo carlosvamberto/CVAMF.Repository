@@ -10,6 +10,7 @@ Generic Repository Pattern implementation for Entity Framework Core with support
 - ✅ **AsNoTracking for 30-40% faster read-only queries**
 - ✅ **Soft Delete with flexible field naming (IsDeleted or Deleted)**
 - ✅ **Audit Fields (optional CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)**
+- ✅ **Multi-Tenancy support with automatic tenant isolation**
 - ✅ **Multi-Targeting: Compatible with .NET 9.0 and 10.0**
 - ✅ Support for Guid and Int primary keys
 - ✅ Filtering with Expression Functions
@@ -25,7 +26,7 @@ Generic Repository Pattern implementation for Entity Framework Core with support
 dotnet add package CVAMF.Repository
 ```
 
-Or via NuGet Package Manager:
+Or via NuGet Package Manager (NPM):
 
 ```
 Install-Package CVAMF.Repository
@@ -40,7 +41,7 @@ This package supports **multiple .NET versions** through multi-targeting:
 
 The correct version is **automatically selected** based on your project's target framework. No additional configuration needed!
 
-📖 For more details on multi-targeting, see **[MULTITARGETING.md](MULTITARGETING.md)**.
+📖 For more details on multi-targeting, see **[MULTITARGETING.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/MULTITARGETING.md)**.
 
 ## Quick Start
 
@@ -796,7 +797,7 @@ public async Task<bool> TransferInventoryAsync(Guid fromWarehouseId, Guid toWare
 
 ### 📚 Complete Unit of Work Documentation
 
-For detailed examples and advanced usage patterns, see **[UNITOFWORK_USAGE.md](UNITOFWORK_USAGE.md)** which includes:
+For detailed examples and advanced usage patterns, see **[UNITOFWORK_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/UNITOFWORK_USAGE.md)** which includes:
 
 - ✅ Basic setup and configuration
 - ✅ Transaction management strategies
@@ -858,7 +859,7 @@ var product = await _productRepository.GetByIdAsync(
 
 #### 📖 Complete Include Documentation
 
-For comprehensive examples, performance tips, and best practices, see **[INCLUDE_USAGE.md](INCLUDE_USAGE.md)** which includes:
+For comprehensive examples, performance tips, and best practices, see **[INCLUDE_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/INCLUDE_USAGE.md)** which includes:
 
 - ✅ All methods with Include support
 - ✅ ThenInclude for nested relationships
@@ -921,19 +922,15 @@ await _productRepository.SaveChangesAsync();
 
 #### Performance Comparison
 
-```
-┌────────────────────┬──────────────┬──────────────────┐
-│ Operation          │ With Tracking│ AsNoTracking     │
-├────────────────────┼──────────────┼──────────────────┤
-│ Query 1000 records │ 250ms        │ 150ms (40%)     │
-│ Memory usage       │ 15MB         │ 9MB (40%)       │
-│ Query 10 records   │ 25ms         │ 18ms (28%)      │
-└────────────────────┴──────────────┴──────────────────┘
-```
+|    Operation       | With Tracking  | AsNoTracking       |
+|--------------------|----------------|--------------------|
+| Query 1000 records | 250ms          | 150ms (40% faster) |
+| Memory usage       | 15MB           | 9MB (40% less)     |
+| Query 10 records   | 25ms           | 18ms (28% faster)  |
 
 #### 📖 Complete AsNoTracking Documentation
 
-For detailed examples and best practices, see **[ASNOTRACKING_USAGE.md](ASNOTRACKING_USAGE.md)** which includes:
+For detailed examples and best practices, see **[ASNOTRACKING_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/ASNOTRACKING_USAGE.md)** which includes:
 
 - ✅ When to use vs when NOT to use
 - ✅ API controller examples
@@ -1013,7 +1010,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 
 #### 📖 Complete Soft Delete Documentation
 
-For comprehensive examples and migration guide, see **[SOFTDELETE_USAGE.md](SOFTDELETE_USAGE.md)** which includes:
+For comprehensive examples and migration guide, see **[SOFTDELETE_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/SOFTDELETE_USAGE.md)** which includes:
 
 - ✅ Choosing field names (`IsDeleted` vs `Deleted`)
 - ✅ Base classes and interfaces available
@@ -1084,7 +1081,7 @@ await _productRepository.AddAsync(product); // No audit info filled
 
 #### 📖 Complete Audit Documentation
 
-For comprehensive examples and ASP.NET Core integration, see **[AUDIT_USAGE.md](AUDIT_USAGE.md)** which includes:
+For comprehensive examples and ASP.NET Core integration, see **[AUDIT_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/AUDIT_USAGE.md)** which includes:
 
 - ✅ All available base classes and interfaces
 - ✅ Automatic vs manual audit field population
@@ -1093,6 +1090,104 @@ For comprehensive examples and ASP.NET Core integration, see **[AUDIT_USAGE.md](
 - ✅ ASP.NET Core integration (getting current user)
 - ✅ DbContext configuration and indexes
 - ✅ Complete real-world examples
+
+### 🏢 Multi-Tenancy Support
+
+**Multi-Tenancy** enables your application to serve multiple tenants (organizations, customers) with complete data isolation. The library provides **automatic tenant filtering** and **tenant assignment** without any manual work.
+
+#### Quick Start
+
+**1. Implement ITenantProvider:**
+
+```csharp
+public class HttpTenantProvider : ITenantProvider
+{
+    private readonly IHttpContextAccessor _httpContextAccessor;
+
+    public HttpTenantProvider(IHttpContextAccessor httpContextAccessor)
+    {
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    public string? GetCurrentTenantId()
+    {
+        return _httpContextAccessor.HttpContext?.User
+            .FindFirst("TenantId")?.Value;
+    }
+
+    public bool HasTenantContext()
+    {
+        return !string.IsNullOrEmpty(GetCurrentTenantId());
+    }
+}
+```
+
+**2. Create tenant entities:**
+
+```csharp
+public class Product : EntityBaseTenant
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    // TenantId is inherited
+}
+```
+
+**3. Register services:**
+
+```csharp
+builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
+
+builder.Services.AddScoped<IUnitOfWork>(sp =>
+{
+    var context = sp.GetRequiredService<ApplicationDbContext>();
+    var tenantProvider = sp.GetRequiredService<ITenantProvider>();
+    return new UnitOfWork(context, tenantProvider);
+});
+```
+
+**4. Use normally - automatic tenant isolation:**
+
+```csharp
+// Only returns current tenant's products
+var products = await _unitOfWork.Repository<Product, Guid>().GetAllAsync();
+
+// TenantId is set automatically
+var product = new Product { Name = "Laptop", Price = 999 };
+await _unitOfWork.Repository<Product, Guid>().AddAsync(product);
+await _unitOfWork.CommitAsync();
+```
+
+#### Available Multi-Tenant Base Classes
+
+```csharp
+// Simple tenant support
+EntityBaseTenant / EntityBaseTenantInt
+
+// With Soft Delete
+EntityBaseTenantSoftDelete / EntityBaseTenantSoftDeleteInt
+EntityBaseTenantSoftDeleteAlt / EntityBaseTenantSoftDeleteAltInt
+
+// With Audit
+EntityBaseTenantAuditable / EntityBaseTenantAuditableInt
+
+// Complete (Tenant + Audit + Soft Delete)
+EntityBaseTenantAuditableSoftDelete / EntityBaseTenantAuditableSoftDeleteInt
+EntityBaseTenantAuditableSoftDeleteAlt / EntityBaseTenantAuditableSoftDeleteAltInt
+```
+
+#### 📖 Complete Multi-Tenancy Documentation
+
+For comprehensive examples, advanced scenarios, and security best practices, see **[MULTITENANCY_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/CVAMF.Repository/MULTITENANCY_USAGE.md)** which includes:
+
+- ✅ Automatic tenant filtering in all queries
+- ✅ Automatic tenant assignment on entity creation
+- ✅ Custom tenant identifier types (string, Guid, int)
+- ✅ Integration with authentication/authorization
+- ✅ Testing strategies
+- ✅ Performance optimization and indexing
+- ✅ Security best practices
+- ✅ Real-world API examples
 
 ### Transaction Example (Without Unit of Work)
 
@@ -1227,18 +1322,13 @@ public async Task<IEnumerable<Product>> GetActiveNonDeletedProducts()
 | `DeleteRangeAsync(entities)` | Delete multiple entities | `Task` |
 | `SaveChangesAsync()` | Persist changes to database | `int` (affected rows) |
 
-## Requirements
-
-- .NET 10.0 or higher
-- Entity Framework Core 10.0 or higher
-
 ## License
 
 MIT
 
 ## Author
 
-Carlos Filho
+Carlos Vamberto Filho
 
 ## Contributing
 

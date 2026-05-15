@@ -6,17 +6,40 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>CVAMF.Repository</PackageId>
-    <Version>1.4.2</Version>
+    <Version>1.5.0</Version>
     <Authors>Carlos Vamberto Filho</Authors>
     <Company>CVAMF</Company>
-    <Description>Generic Repository Pattern implementation for Entity Framework Core with support for filters, pagination, Unit of Work pattern with transaction management, Include (Eager Loading) for related entities, AsNoTracking for performance optimization, Soft Delete with flexible field naming, optional Audit Fields tracking, and multiple primary key types (Guid and Int). Compatible with .NET 9.0 and 10.0.</Description>
-    <PackageTags>repository;ef-core;entity-framework;generic-repository;pattern;unit-of-work;transaction;uow;include;eager-loading;asnotracking;performance;soft-delete;audit;audit-trail;tracking;net9;net10;multi-target</PackageTags>
+    <Description>Generic Repository Pattern implementation for Entity Framework Core with support for filters, pagination, Unit of Work pattern with transaction management, Include (Eager Loading) for related entities, AsNoTracking for performance optimization, Soft Delete with flexible field naming, optional Audit Fields tracking, Multi-Tenancy support with automatic tenant isolation, and multiple primary key types (Guid and Int). Compatible with .NET 9.0 and 10.0.</Description>
+    <PackageTags>repository;ef-core;entity-framework;generic-repository;pattern;unit-of-work;transaction;uow;include;eager-loading;asnotracking;performance;soft-delete;audit;audit-trail;tracking;multi-tenancy;tenant;saas;net9;net10;multi-target</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/carlosvamberto/CVAMF.Repository</RepositoryUrl>
     <PackageProjectUrl>https://github.com/carlosvamberto/CVAMF.Repository</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PackageReleaseNotes>
+## v1.5.0
+- 🏢 **Multi-Tenancy Support**: Complete isolation for multi-tenant applications
+  - `ITenantEntity` interface and `ITenantProvider` for tenant context
+  - Automatic tenant filtering on all queries (GetAll, GetById, GetPaged, etc.)
+  - Automatic tenant assignment on entity creation (Add, AddRange)
+  - 12 new base classes combining tenant support with other features:
+    - Simple: EntityBaseTenant, EntityBaseTenantInt
+    - With Soft Delete: EntityBaseTenantSoftDelete[Alt][Int]
+    - With Audit: EntityBaseTenantAuditable[Int]
+    - Complete: EntityBaseTenantAuditableSoftDelete[Alt][Int]
+  - SimpleTenantProvider for testing scenarios
+  - Custom tenant identifier support (string, Guid, int, etc.)
+  - Zero-configuration for tenant filtering - just implement ITenantProvider
+  - UnitOfWork integration with tenant context propagation
+  - Performance optimized with expression-based filters
+  - Documentation: MULTITENANCY_USAGE.md
+
+## v1.4.3
+- 📖 **Fixed Documentation Links**: Updated all documentation links in README to use absolute GitHub URLs
+  - Links now work correctly when viewing README on NuGet.org
+  - Documentation files: MULTITARGETING.md, UNITOFWORK_USAGE.md, INCLUDE_USAGE.md, ASNOTRACKING_USAGE.md, SOFTDELETE_USAGE.md, AUDIT_USAGE.md
+  - Improved user experience for package documentation
+
 ## v1.4.2
 - 🎨 **Package Icon**: Added custom icon for better visibility on NuGet.org
   - 128x128 pixels, optimized to 23 KB

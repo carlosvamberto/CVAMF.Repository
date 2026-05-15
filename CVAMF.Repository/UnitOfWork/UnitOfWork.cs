@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using CVAMF.Repository.Entities;
 using CVAMF.Repository.Interfaces;
+using CVAMF.Repository.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -13,6 +14,7 @@ public class UnitOfWork : IUnitOfWork
 {
     private readonly DbContext _context;
     private readonly ConcurrentDictionary<string, object> _repositories;
+    private readonly ITenantProvider<string>? _tenantProvider;
     private IDbContextTransaction? _currentTransaction;
     private bool _disposed;
 
@@ -20,10 +22,12 @@ public class UnitOfWork : IUnitOfWork
     /// Initializes a new instance of UnitOfWork
     /// </summary>
     /// <param name="context">Database context</param>
-    public UnitOfWork(DbContext context)
+    /// <param name="tenantProvider">Optional tenant provider for multi-tenancy support</param>
+    public UnitOfWork(DbContext context, ITenantProvider<string>? tenantProvider = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _repositories = new ConcurrentDictionary<string, object>();
+        _tenantProvider = tenantProvider;
     }
 
     /// <inheritdoc />
@@ -38,7 +42,8 @@ public class UnitOfWork : IUnitOfWork
             var repositoryType = typeof(Repositories.Repository<,>);
             var repositoryInstance = Activator.CreateInstance(
                 repositoryType.MakeGenericType(typeof(TEntity), typeof(TKey)),
-                _context);
+                _context,
+                _tenantProvider);
 
             return repositoryInstance ?? throw new InvalidOperationException(
                 $"Could not create repository for {typeof(TEntity).Name}");

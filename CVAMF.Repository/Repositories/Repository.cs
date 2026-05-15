@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using CVAMF.Repository.Entities;
 using CVAMF.Repository.Interfaces;
 using CVAMF.Repository.Models;
+using CVAMF.Repository.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace CVAMF.Repository.Repositories;
@@ -17,16 +18,60 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 {
     protected readonly DbContext _context;
     protected readonly DbSet<TEntity> _dbSet;
+    protected readonly ITenantProvider<string>? _tenantProvider;
 
-    public Repository(DbContext context)
+    public Repository(DbContext context, ITenantProvider<string>? tenantProvider = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _dbSet = _context.Set<TEntity>();
+        _tenantProvider = tenantProvider;
+    }
+
+    protected IQueryable<TEntity> ApplyTenantFilter(IQueryable<TEntity> query)
+    {
+        if (_tenantProvider != null && _tenantProvider.HasTenantContext() && typeof(ITenantEntity).IsAssignableFrom(typeof(TEntity)))
+        {
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+            if (!string.IsNullOrEmpty(tenantId))
+            {
+                var parameter = Expression.Parameter(typeof(TEntity), "e");
+                var property = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
+                var constant = Expression.Constant(tenantId);
+                var equality = Expression.Equal(property, constant);
+                var lambda = Expression.Lambda<Func<TEntity, bool>>(equality, parameter);
+
+                query = query.Where(lambda);
+            }
+        }
+        return query;
+    }
+
+    protected void SetTenantId(TEntity entity)
+    {
+        if (_tenantProvider != null && _tenantProvider.HasTenantContext() && entity is ITenantEntity tenantEntity)
+        {
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+            if (!string.IsNullOrEmpty(tenantId))
+            {
+                tenantEntity.TenantId = tenantId;
+            }
+        }
     }
 
     public virtual async Task<TEntity?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FindAsync(new object[] { id }, cancellationToken);
+        var entity = await _dbSet.FindAsync(new object[] { id }, cancellationToken);
+
+        if (entity != null && _tenantProvider != null && _tenantProvider.HasTenantContext() && entity is ITenantEntity tenantEntity)
+        {
+            var currentTenantId = _tenantProvider.GetCurrentTenantId();
+            if (!string.IsNullOrEmpty(currentTenantId) && tenantEntity.TenantId != currentTenantId)
+            {
+                return null;
+            }
+        }
+
+        return entity;
     }
 
     public virtual async Task<TEntity?> GetByIdAsync(
@@ -36,6 +81,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         CancellationToken cancellationToken = default)
     {
         IQueryable<TEntity> query = _dbSet;
+
+        query = ApplyTenantFilter(query);
 
         if (asNoTracking)
         {
@@ -52,7 +99,9 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 
     public virtual async Task<IEnumerable<TEntity>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbSet.ToListAsync(cancellationToken);
+        IQueryable<TEntity> query = _dbSet;
+        query = ApplyTenantFilter(query);
+        return await query.ToListAsync(cancellationToken);
     }
 
     public virtual async Task<IEnumerable<TEntity>> GetAllAsync(
@@ -62,6 +111,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
     {
         IQueryable<TEntity> query = _dbSet;
 
+        query = ApplyTenantFilter(query);
+
         if (asNoTracking)
         {
             query = query.AsNoTracking();
@@ -81,6 +132,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         CancellationToken cancellationToken = default)
     {
         IQueryable<TEntity> query = _dbSet;
+
+        query = ApplyTenantFilter(query);
 
         if (filter != null)
         {
@@ -103,6 +156,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         CancellationToken cancellationToken = default)
     {
         IQueryable<TEntity> query = _dbSet;
+
+        query = ApplyTenantFilter(query);
 
         if (asNoTracking)
         {
@@ -141,6 +196,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
             throw new ArgumentException("Page size must be greater than 0", nameof(pageSize));
 
         IQueryable<TEntity> query = _dbSet;
+
+        query = ApplyTenantFilter(query);
 
         if (filter != null)
         {
@@ -185,6 +242,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 
         IQueryable<TEntity> query = _dbSet;
 
+        query = ApplyTenantFilter(query);
+
         if (asNoTracking)
         {
             query = query.AsNoTracking();
@@ -225,7 +284,9 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         Expression<Func<TEntity, bool>> filter,
         CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(filter, cancellationToken);
+        IQueryable<TEntity> query = _dbSet;
+        query = ApplyTenantFilter(query);
+        return await query.FirstOrDefaultAsync(filter, cancellationToken);
     }
 
     public virtual async Task<TEntity?> GetFirstOrDefaultAsync(
@@ -235,6 +296,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         CancellationToken cancellationToken = default)
     {
         IQueryable<TEntity> query = _dbSet;
+
+        query = ApplyTenantFilter(query);
 
         if (asNoTracking)
         {
@@ -253,19 +316,24 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         Expression<Func<TEntity, bool>> filter,
         CancellationToken cancellationToken = default)
     {
-        return await _dbSet.AnyAsync(filter, cancellationToken);
+        IQueryable<TEntity> query = _dbSet;
+        query = ApplyTenantFilter(query);
+        return await query.AnyAsync(filter, cancellationToken);
     }
 
     public virtual async Task<int> CountAsync(
         Expression<Func<TEntity, bool>>? filter = null,
         CancellationToken cancellationToken = default)
     {
+        IQueryable<TEntity> query = _dbSet;
+        query = ApplyTenantFilter(query);
+
         if (filter != null)
         {
-            return await _dbSet.CountAsync(filter, cancellationToken);
+            return await query.CountAsync(filter, cancellationToken);
         }
 
-        return await _dbSet.CountAsync(cancellationToken);
+        return await query.CountAsync(cancellationToken);
     }
 
     public virtual async Task<TEntity> AddAsync(TEntity entity, CancellationToken cancellationToken = default)
@@ -273,6 +341,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         if (entity == null)
             throw new ArgumentNullException(nameof(entity));
 
+        SetTenantId(entity);
         await _dbSet.AddAsync(entity, cancellationToken);
         return entity;
     }
@@ -282,7 +351,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         if (entity == null)
             throw new ArgumentNullException(nameof(entity));
 
-        // Set audit fields if entity implements IAuditable
+        SetTenantId(entity);
+
         if (entity is IAuditable auditable)
         {
             auditable.CreatedAt = DateTime.UtcNow;
@@ -297,6 +367,11 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
     {
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
+
+        foreach (var entity in entities)
+        {
+            SetTenantId(entity);
+        }
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
     }
