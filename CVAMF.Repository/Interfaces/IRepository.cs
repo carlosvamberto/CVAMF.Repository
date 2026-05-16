@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using CVAMF.Repository.Entities;
 using CVAMF.Repository.Models;
+using CVAMF.Repository.QueryBuilder;
 using CVAMF.Repository.Specifications;
 
 namespace CVAMF.Repository.Interfaces;
@@ -463,6 +464,45 @@ public interface IRepository<TEntity, TKey>
     Task<bool> AnyAsync(
         ISpecification<TEntity> specification,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a fluent query builder for constructing complex queries.
+    /// </summary>
+    /// <returns>Query builder instance</returns>
+    /// <example>
+    /// <code>
+    /// // Simple query with filter and include
+    /// var customers = await _customerRepository.Query()
+    ///     .Where(x => x.Active)
+    ///     .Include(x => x.Orders)
+    ///     .OrderBy(x => x.Name)
+    ///     .ToListAsync();
+    /// 
+    /// // Complex query with projection and pagination
+    /// var customerDtos = await _customerRepository.Query()
+    ///     .Where(x => x.Active)
+    ///     .Where(x => x.Country == "USA")
+    ///     .Include(x => x.Orders)
+    ///     .ProjectTo(x => new CustomerDto
+    ///     {
+    ///         Id = x.Id,
+    ///         Name = x.Name,
+    ///         OrderCount = x.Orders.Count
+    ///     })
+    ///     .OrderByDescending(x => x.OrderCount)
+    ///     .Paginate(1, 20)
+    ///     .ToPagedResultAsync();
+    /// 
+    /// // Read-only query with AsNoTracking
+    /// var products = await _productRepository.Query()
+    ///     .Where(x => x.InStock)
+    ///     .Include(x => x.Category)
+    ///     .AsNoTracking()
+    ///     .OrderBy(x => x.Name)
+    ///     .ToListAsync();
+    /// </code>
+    /// </example>
+    IQueryBuilder<TEntity, TKey> Query();
 
     /// <summary>
     /// Saves all changes to the database
