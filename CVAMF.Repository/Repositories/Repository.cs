@@ -4,6 +4,7 @@ using CVAMF.Repository.Entities;
 using CVAMF.Repository.Interfaces;
 using CVAMF.Repository.Models;
 using CVAMF.Repository.MultiTenancy;
+using CVAMF.Repository.QueryBuilder;
 using CVAMF.Repository.Specifications;
 using Microsoft.EntityFrameworkCore;
 
@@ -738,6 +739,15 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
             query = query.IgnoreQueryFilters();
 
         return await query.AnyAsync(cancellationToken);
+    }
+
+    #endregion
+
+    #region Fluent Query Builder (v1.7.0)
+
+    public virtual IQueryBuilder<TEntity, TKey> Query()
+    {
+        return new QueryBuilder<TEntity, TKey>(_context, _tenantProvider, _cacheService, _cacheOptions);
     }
 
     #endregion

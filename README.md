@@ -5,14 +5,15 @@ Generic Repository Pattern implementation for Entity Framework Core with support
 ## Features
 
 - ✅ Generic Repository Pattern for EF Core
+- ✅ **Fluent Query Builder for modern, type-safe query construction** ⭐ NEW in v1.7.0
+- ✅ **Specification Pattern for reusable, testable query logic**
+- ✅ **Caching support (Memory & Redis) with automatic invalidation**
+- ✅ **Multi-Tenancy support with automatic tenant isolation**
 - ✅ **Unit of Work pattern with transaction support**
 - ✅ **Include (Eager Loading) support for related entities**
 - ✅ **AsNoTracking for 30-40% faster read-only queries**
 - ✅ **Soft Delete with flexible field naming (IsDeleted or Deleted)**
 - ✅ **Audit Fields (optional CreatedAt, CreatedBy, UpdatedAt, UpdatedBy)**
-- ✅ **Multi-Tenancy support with automatic tenant isolation**
-- ✅ **Caching support (Memory & Redis) with automatic invalidation**
-- ✅ **Specification Pattern for reusable, testable query logic**
 - ✅ **Multi-Targeting: Compatible with .NET 9.0 and 10.0**
 - ✅ Support for Guid and Int primary keys
 - ✅ Filtering with Expression Functions
@@ -940,6 +941,210 @@ For detailed examples and best practices, see **[ASNOTRACKING_USAGE.md](https://
 - ✅ Performance benchmarks
 - ✅ Common pitfalls and solutions
 
+### 🔍 Fluent Query Builder ⭐ NEW in v1.7.0
+
+The **Fluent Query Builder** provides a modern, type-safe, and IntelliSense-friendly way to construct complex queries using method chaining. It's perfect for building dynamic queries, working with DTOs, and creating readable query code.
+
+#### Quick Start
+
+```csharp
+// Simple query
+var activeCustomers = await _customerRepository.Query()
+    .Where(x => x.Active)
+    .OrderBy(x => x.Name)
+    .ToListAsync();
+
+// Query with includes and projection
+var customerDtos = await _customerRepository.Query()
+    .Where(x => x.Active)
+    .Include(x => x.Orders)
+    .AsNoTracking() // Performance optimization
+    .ProjectTo(x => new CustomerDto
+    {
+        Id = x.Id,
+        Name = x.Name,
+        OrderCount = x.Orders.Count
+    })
+    .OrderByDescending(x => x.OrderCount)
+    .Paginate(1, 20)
+    .ToPagedResultAsync();
+```
+
+#### Key Features
+
+- ✅ **Fluent method chaining** - Readable, type-safe query construction
+- ✅ **Multiple WHERE clauses** - Chain filters with AND logic
+- ✅ **Include support** - Eager loading with ThenInclude
+- ✅ **Complex ordering** - OrderBy, ThenBy, ThenByDescending
+- ✅ **Projection to DTOs** - Map to custom types with ProjectTo()
+- ✅ **Pagination** - Paginate() or Skip/Take
+- ✅ **Performance options** - AsNoTracking(), AsSplitQuery(), IgnoreQueryFilters()
+- ✅ **Multiple execution methods** - ToListAsync(), FirstOrDefaultAsync(), CountAsync(), AnyAsync()
+- ✅ **Auto tenant filtering** - Integrates with Multi-Tenancy
+- ✅ **Cache aware** - Works with configured caching
+
+#### Basic Examples
+
+```csharp
+// Multiple filters
+var filteredProducts = await _productRepository.Query()
+    .Where(x => x.InStock)
+    .Where(x => x.Price > 10)
+    .Where(x => x.Category == "Electronics")
+    .ToListAsync();
+
+// With includes
+var orders = await _orderRepository.Query()
+    .Where(x => x.Status == "Pending")
+    .Include(x => x.Customer)
+    .Include(x => x.Items)
+    .OrderByDescending(x => x.OrderDate)
+    .ToListAsync();
+
+// Complex ordering
+var customers = await _customerRepository.Query()
+    .OrderBy(x => x.Country)
+    .ThenBy(x => x.City)
+    .ThenByDescending(x => x.CreatedAt)
+    .ToListAsync();
+```
+
+#### Projection to DTOs
+
+```csharp
+public class ProductListDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+    public string CategoryName { get; set; }
+}
+
+// Project to DTO
+var productDtos = await _productRepository.Query()
+    .Where(x => x.InStock)
+    .Include(x => x.Category)
+    .AsNoTracking() // Must be before ProjectTo
+    .ProjectTo(x => new ProductListDto
+    {
+        Id = x.Id,
+        Name = x.Name,
+        Price = x.Price,
+        CategoryName = x.Category.Name
+    })
+    .OrderBy(x => x.Name)
+    .ToListAsync();
+```
+
+#### Pagination
+
+```csharp
+// Using Paginate
+var pagedResult = await _productRepository.Query()
+    .Where(x => x.InStock)
+    .OrderBy(x => x.Name)
+    .Paginate(pageNumber: 1, pageSize: 20)
+    .ToPagedResultAsync();
+
+Console.WriteLine($"Page {pagedResult.PageNumber} of {pagedResult.TotalPages}");
+Console.WriteLine($"Total items: {pagedResult.TotalCount}");
+
+// Using Skip/Take
+var topProducts = await _productRepository.Query()
+    .OrderByDescending(x => x.Price)
+    .Take(10)
+    .ToListAsync();
+```
+
+#### Real-World Example: Dynamic Search
+
+```csharp
+public async Task<PagedResult<ProductListDto>> SearchProducts(
+    string? searchTerm,
+    Guid? categoryId,
+    decimal? minPrice,
+    decimal? maxPrice,
+    int pageNumber,
+    int pageSize)
+{
+    var query = _productRepository.Query();
+
+    // Optional filters
+    if (!string.IsNullOrEmpty(searchTerm))
+    {
+        query = query.Where(x => x.Name.Contains(searchTerm) || 
+                                 x.Description.Contains(searchTerm));
+    }
+
+    if (categoryId.HasValue)
+    {
+        query = query.Where(x => x.CategoryId == categoryId.Value);
+    }
+
+    if (minPrice.HasValue)
+    {
+        query = query.Where(x => x.Price >= minPrice.Value);
+    }
+
+    if (maxPrice.HasValue)
+    {
+        query = query.Where(x => x.Price <= maxPrice.Value);
+    }
+
+    return await query
+        .Include(x => x.Category)
+        .AsNoTracking()
+        .ProjectTo(x => new ProductListDto
+        {
+            Id = x.Id,
+            Name = x.Name,
+            Price = x.Price,
+            CategoryName = x.Category.Name
+        })
+        .OrderBy(x => x.Name)
+        .Paginate(pageNumber, pageSize)
+        .ToPagedResultAsync();
+}
+```
+
+#### Execution Methods
+
+```csharp
+// Get all results
+var list = await query.ToListAsync();
+
+// Get paged results (requires Paginate)
+var paged = await query.Paginate(1, 20).ToPagedResultAsync();
+
+// Get first or null
+var first = await query.FirstOrDefaultAsync();
+
+// Get first or throw
+var firstRequired = await query.FirstAsync();
+
+// Get single or null (throws if multiple)
+var single = await query.SingleOrDefaultAsync();
+
+// Count results
+var count = await query.CountAsync();
+
+// Check if any
+var hasResults = await query.AnyAsync();
+```
+
+#### 📖 Complete Query Builder Documentation
+
+For comprehensive examples, best practices, and advanced scenarios, see **[QUERYBUILDER_USAGE.md](https://github.com/carlosvamberto/CVAMF.Repository/blob/master/QUERYBUILDER_USAGE.md)** which includes:
+
+- ✅ All features and capabilities
+- ✅ Multiple where clauses and complex filters
+- ✅ Include and ThenInclude patterns
+- ✅ Projection examples with aggregation
+- ✅ Performance optimization tips
+- ✅ When to use Query Builder vs Specifications
+- ✅ Complete real-world scenarios
+- ✅ Integration with Multi-Tenancy and Caching
+
 ### 🗑️ Soft Delete Support
 
 **Soft Delete** allows marking records as deleted without physically removing them from the database. You can choose between **two field naming conventions**: `IsDeleted` or `Deleted`.
@@ -948,7 +1153,7 @@ For detailed examples and best practices, see **[ASNOTRACKING_USAGE.md](https://
 
 **Option 1: Using `IsDeleted` (recommended):**
 
-```csharp
+```
 using CVAMF.Repository.Entities;
 
 public class Product : EntityBaseSoftDelete
