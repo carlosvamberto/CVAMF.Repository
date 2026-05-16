@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CVAMF.Repository.Caching;
 using CVAMF.Repository.Entities;
 using CVAMF.Repository.Interfaces;
 using CVAMF.Repository.MultiTenancy;
@@ -15,6 +16,8 @@ public class UnitOfWork : IUnitOfWork
     private readonly DbContext _context;
     private readonly ConcurrentDictionary<string, object> _repositories;
     private readonly ITenantProvider<string>? _tenantProvider;
+    private readonly ICacheService? _cacheService;
+    private readonly CacheOptions? _cacheOptions;
     private IDbContextTransaction? _currentTransaction;
     private bool _disposed;
 
@@ -23,11 +26,19 @@ public class UnitOfWork : IUnitOfWork
     /// </summary>
     /// <param name="context">Database context</param>
     /// <param name="tenantProvider">Optional tenant provider for multi-tenancy support</param>
-    public UnitOfWork(DbContext context, ITenantProvider<string>? tenantProvider = null)
+    /// <param name="cacheService">Optional cache service for caching support</param>
+    /// <param name="cacheOptions">Optional cache configuration options</param>
+    public UnitOfWork(
+        DbContext context, 
+        ITenantProvider<string>? tenantProvider = null,
+        ICacheService? cacheService = null,
+        CacheOptions? cacheOptions = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _repositories = new ConcurrentDictionary<string, object>();
         _tenantProvider = tenantProvider;
+        _cacheService = cacheService;
+        _cacheOptions = cacheOptions;
     }
 
     /// <inheritdoc />
@@ -43,7 +54,9 @@ public class UnitOfWork : IUnitOfWork
             var repositoryInstance = Activator.CreateInstance(
                 repositoryType.MakeGenericType(typeof(TEntity), typeof(TKey)),
                 _context,
-                _tenantProvider);
+                _tenantProvider,
+                _cacheService,
+                _cacheOptions);
 
             return repositoryInstance ?? throw new InvalidOperationException(
                 $"Could not create repository for {typeof(TEntity).Name}");

@@ -1,8 +1,10 @@
 using System.Linq.Expressions;
+using CVAMF.Repository.Caching;
 using CVAMF.Repository.Entities;
 using CVAMF.Repository.Interfaces;
 using CVAMF.Repository.Models;
 using CVAMF.Repository.MultiTenancy;
+using CVAMF.Repository.Specifications;
 using Microsoft.EntityFrameworkCore;
 
 namespace CVAMF.Repository.Repositories;
@@ -19,12 +21,53 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
     protected readonly DbContext _context;
     protected readonly DbSet<TEntity> _dbSet;
     protected readonly ITenantProvider<string>? _tenantProvider;
+    protected readonly ICacheService? _cacheService;
+    protected readonly CacheOptions? _cacheOptions;
 
-    public Repository(DbContext context, ITenantProvider<string>? tenantProvider = null)
+    public Repository(
+        DbContext context, 
+        ITenantProvider<string>? tenantProvider = null,
+        ICacheService? cacheService = null,
+        CacheOptions? cacheOptions = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _dbSet = _context.Set<TEntity>();
         _tenantProvider = tenantProvider;
+        _cacheService = cacheService;
+        _cacheOptions = cacheOptions ?? new CacheOptions();
+    }
+
+    protected string BuildCacheKey(string operation, params object[] parameters)
+    {
+        var keyParts = new List<string> { _cacheOptions?.KeyPrefix ?? "CVAMF.Repository:" };
+
+        if (_cacheOptions?.UseEntityTypeInKey ?? true)
+        {
+            keyParts.Add(typeof(TEntity).Name);
+        }
+
+        if (_cacheOptions?.UseTenantIdInKey ?? true)
+        {
+            var tenantId = _tenantProvider?.GetCurrentTenantId();
+            if (!string.IsNullOrEmpty(tenantId))
+            {
+                keyParts.Add($"Tenant:{tenantId}");
+            }
+        }
+
+        keyParts.Add(operation);
+        keyParts.AddRange(parameters.Select(p => p?.ToString() ?? "null"));
+
+        return string.Join(":", keyParts);
+    }
+
+    protected async Task InvalidateCacheAsync(CancellationToken cancellationToken = default)
+    {
+        if (_cacheService == null || !(_cacheOptions?.AutoInvalidateOnWrite ?? true))
+            return;
+
+        var pattern = BuildCacheKey("*");
+        await _cacheService.RemoveByPatternAsync(pattern, cancellationToken);
     }
 
     protected IQueryable<TEntity> ApplyTenantFilter(IQueryable<TEntity> query)
@@ -60,6 +103,15 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 
     public virtual async Task<TEntity?> GetByIdAsync(TKey id, CancellationToken cancellationToken = default)
     {
+        // Try cache first if enabled
+        if (_cacheService != null && (_cacheOptions?.CacheGetById ?? true))
+        {
+            var cacheKey = BuildCacheKey("GetById", id);
+            var cached = await _cacheService.GetAsync<TEntity>(cacheKey, cancellationToken);
+            if (cached != null)
+                return cached;
+        }
+
         var entity = await _dbSet.FindAsync(new object[] { id }, cancellationToken);
 
         if (entity != null && _tenantProvider != null && _tenantProvider.HasTenantContext() && entity is ITenantEntity tenantEntity)
@@ -69,6 +121,18 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
             {
                 return null;
             }
+        }
+
+        // Cache the result if enabled
+        if (entity != null && _cacheService != null && (_cacheOptions?.CacheGetById ?? true))
+        {
+            var cacheKey = BuildCacheKey("GetById", id);
+            await _cacheService.SetAsync(
+                cacheKey, 
+                entity, 
+                _cacheOptions?.DefaultExpiration,
+                _cacheOptions?.SlidingExpiration,
+                cancellationToken);
         }
 
         return entity;
@@ -343,6 +407,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 
         SetTenantId(entity);
         await _dbSet.AddAsync(entity, cancellationToken);
+        await InvalidateCacheAsync(cancellationToken);
         return entity;
     }
 
@@ -360,6 +425,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         }
 
         await _dbSet.AddAsync(entity, cancellationToken);
+        await InvalidateCacheAsync(cancellationToken);
         return entity;
     }
 
@@ -374,6 +440,7 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         }
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
+        await InvalidateCacheAsync(cancellationToken);
     }
 
     public virtual async Task AddRangeAsync(IEnumerable<TEntity> entities, string? createdBy, CancellationToken cancellationToken = default)
@@ -394,18 +461,19 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         }
 
         await _dbSet.AddRangeAsync(entities, cancellationToken);
+        await InvalidateCacheAsync(cancellationToken);
     }
 
-    public virtual Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public virtual async Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
         if (entity == null)
             throw new ArgumentNullException(nameof(entity));
 
         _dbSet.Update(entity);
-        return Task.CompletedTask;
+        await InvalidateCacheAsync(cancellationToken);
     }
 
-    public virtual Task UpdateAsync(TEntity entity, string? updatedBy, CancellationToken cancellationToken = default)
+    public virtual async Task UpdateAsync(TEntity entity, string? updatedBy, CancellationToken cancellationToken = default)
     {
         if (entity == null)
             throw new ArgumentNullException(nameof(entity));
@@ -418,19 +486,19 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         }
 
         _dbSet.Update(entity);
-        return Task.CompletedTask;
+        await InvalidateCacheAsync(cancellationToken);
     }
 
-    public virtual Task UpdateRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public virtual async Task UpdateRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
 
         _dbSet.UpdateRange(entities);
-        return Task.CompletedTask;
+        await InvalidateCacheAsync(cancellationToken);
     }
 
-    public virtual Task UpdateRangeAsync(IEnumerable<TEntity> entities, string? updatedBy, CancellationToken cancellationToken = default)
+    public virtual async Task UpdateRangeAsync(IEnumerable<TEntity> entities, string? updatedBy, CancellationToken cancellationToken = default)
     {
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
@@ -448,16 +516,16 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         }
 
         _dbSet.UpdateRange(entities);
-        return Task.CompletedTask;
+        await InvalidateCacheAsync(cancellationToken);
     }
 
-    public virtual Task DeleteAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public virtual async Task DeleteAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
         if (entity == null)
             throw new ArgumentNullException(nameof(entity));
 
         _dbSet.Remove(entity);
-        return Task.CompletedTask;
+        await InvalidateCacheAsync(cancellationToken);
     }
 
     public virtual async Task DeleteAsync(TKey id, CancellationToken cancellationToken = default)
@@ -469,16 +537,16 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
         }
     }
 
-    public virtual Task DeleteRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public virtual async Task DeleteRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
 
         _dbSet.RemoveRange(entities);
-        return Task.CompletedTask;
+        await InvalidateCacheAsync(cancellationToken);
     }
 
-    public virtual Task<bool> SoftDeleteAsync(TEntity entity, string? deletedBy = null, CancellationToken cancellationToken = default)
+    public virtual async Task<bool> SoftDeleteAsync(TEntity entity, string? deletedBy = null, CancellationToken cancellationToken = default)
     {
         if (entity == null)
             throw new ArgumentNullException(nameof(entity));
@@ -490,7 +558,8 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
             softDeletable.DeletedAt = DateTime.UtcNow;
             softDeletable.DeletedBy = deletedBy;
             _dbSet.Update(entity);
-            return Task.FromResult(true);
+            await InvalidateCacheAsync(cancellationToken);
+            return true;
         }
 
         // Try ISoftDeletableAlternative (Deleted property)
@@ -500,11 +569,12 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
             softDeletableAlt.DeletedAt = DateTime.UtcNow;
             softDeletableAlt.DeletedBy = deletedBy;
             _dbSet.Update(entity);
-            return Task.FromResult(true);
+            await InvalidateCacheAsync(cancellationToken);
+            return true;
         }
 
         // Entity doesn't support soft delete
-        return Task.FromResult(false);
+        return false;
     }
 
     public virtual async Task<bool> SoftDeleteAsync(TKey id, string? deletedBy = null, CancellationToken cancellationToken = default)
@@ -570,6 +640,107 @@ public class Repository<TEntity, TKey> : IRepository<TEntity, TKey>
 
         return await RestoreAsync(entity, cancellationToken);
     }
+
+    #region Specification Pattern (Optional)
+
+    public virtual async Task<IEnumerable<TEntity>> GetAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        if (specification == null)
+            throw new ArgumentNullException(nameof(specification));
+
+        var query = ApplyTenantFilter(_dbSet.AsQueryable());
+        query = SpecificationEvaluator.GetQuery(query, specification);
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public virtual async Task<TEntity?> GetFirstOrDefaultAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        if (specification == null)
+            throw new ArgumentNullException(nameof(specification));
+
+        var query = ApplyTenantFilter(_dbSet.AsQueryable());
+        query = SpecificationEvaluator.GetQuery(query, specification);
+
+        return await query.FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public virtual async Task<PagedResult<TEntity>> GetPagedAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        if (specification == null)
+            throw new ArgumentNullException(nameof(specification));
+
+        if (!specification.Skip.HasValue || !specification.Take.HasValue)
+            throw new ArgumentException("Specification must include Skip and Take for paging", nameof(specification));
+
+        var query = ApplyTenantFilter(_dbSet.AsQueryable());
+
+        // Get total count before applying pagination
+        var countQuery = query;
+        if (specification.Criteria != null)
+            countQuery = countQuery.Where(specification.Criteria);
+
+        var totalItems = await countQuery.CountAsync(cancellationToken);
+
+        // Apply full specification including pagination
+        query = SpecificationEvaluator.GetQuery(query, specification);
+        var items = await query.ToListAsync(cancellationToken);
+
+        var pageNumber = (specification.Skip.Value / specification.Take.Value) + 1;
+        var pageSize = specification.Take.Value;
+
+        return new PagedResult<TEntity>
+        {
+            Items = items,
+            TotalCount = totalItems,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    public virtual async Task<int> CountAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        if (specification == null)
+            throw new ArgumentNullException(nameof(specification));
+
+        var query = ApplyTenantFilter(_dbSet.AsQueryable());
+
+        if (specification.Criteria != null)
+            query = query.Where(specification.Criteria);
+
+        if (specification.IgnoreQueryFilters)
+            query = query.IgnoreQueryFilters();
+
+        return await query.CountAsync(cancellationToken);
+    }
+
+    public virtual async Task<bool> AnyAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default)
+    {
+        if (specification == null)
+            throw new ArgumentNullException(nameof(specification));
+
+        var query = ApplyTenantFilter(_dbSet.AsQueryable());
+
+        if (specification.Criteria != null)
+            query = query.Where(specification.Criteria);
+
+        if (specification.IgnoreQueryFilters)
+            query = query.IgnoreQueryFilters();
+
+        return await query.AnyAsync(cancellationToken);
+    }
+
+    #endregion
 
     public virtual async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using CVAMF.Repository.Entities;
 using CVAMF.Repository.Models;
+using CVAMF.Repository.Specifications;
 
 namespace CVAMF.Repository.Interfaces;
 
@@ -375,6 +376,93 @@ public interface IRepository<TEntity, TKey>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if entity was restored, false if entity not found or doesn't support soft delete</returns>
     Task<bool> RestoreAsync(TKey id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets entities using a specification pattern (optional feature).
+    /// Specifications encapsulate query logic in reusable, testable classes.
+    /// </summary>
+    /// <param name="specification">The specification containing query logic</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Entities matching the specification</returns>
+    /// <example>
+    /// <code>
+    /// // Define specification once
+    /// public class ActiveProductsSpec : Specification&lt;Product&gt;
+    /// {
+    ///     public ActiveProductsSpec()
+    ///     {
+    ///         AddCriteria(p => p.IsActive);
+    ///         AddInclude(p => p.Category);
+    ///         ApplyOrderBy(p => p.Name);
+    ///         ApplyNoTracking();
+    ///     }
+    /// }
+    /// 
+    /// // Reuse anywhere
+    /// var products = await _productRepository.GetAsync(new ActiveProductsSpec());
+    /// </code>
+    /// </example>
+    Task<IEnumerable<TEntity>> GetAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a single entity using a specification pattern (optional feature).
+    /// </summary>
+    /// <param name="specification">The specification containing query logic</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>First entity matching the specification or null</returns>
+    Task<TEntity?> GetFirstOrDefaultAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets paged entities using a specification pattern (optional feature).
+    /// </summary>
+    /// <param name="specification">The specification containing query logic (must include Skip/Take)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paged result matching the specification</returns>
+    /// <example>
+    /// <code>
+    /// public class PagedActiveProductsSpec : Specification&lt;Product&gt;
+    /// {
+    ///     public PagedActiveProductsSpec(int pageNumber, int pageSize)
+    ///     {
+    ///         AddCriteria(p => p.IsActive && p.Stock > 0);
+    ///         AddInclude(p => p.Category);
+    ///         ApplyOrderByDescending(p => p.CreatedAt);
+    ///         ApplyPaging(pageNumber, pageSize);
+    ///         ApplyNoTracking();
+    ///     }
+    /// }
+    /// 
+    /// var pagedProducts = await _productRepository.GetPagedAsync(
+    ///     new PagedActiveProductsSpec(1, 20));
+    /// </code>
+    /// </example>
+    Task<PagedResult<TEntity>> GetPagedAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the count of entities using a specification pattern (optional feature).
+    /// </summary>
+    /// <param name="specification">The specification containing query logic</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Count of entities matching the specification</returns>
+    Task<int> CountAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks if any entity matches a specification pattern (optional feature).
+    /// </summary>
+    /// <param name="specification">The specification containing query logic</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if any entity matches the specification</returns>
+    Task<bool> AnyAsync(
+        ISpecification<TEntity> specification,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves all changes to the database
