@@ -6,7 +6,7 @@
 		<Nullable>enable</Nullable>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>CVAMF.Repository</PackageId>
-		<Version>1.7.1</Version>
+		<Version>1.7.2</Version>
 		<Authors>Carlos Vamberto Filho</Authors>
 		<Company>CVAMF</Company>
 		<Title>Repository Framework for Entity Framework Core - Generic Repository, Unit of Work, Query Builder</Title>
