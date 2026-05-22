@@ -1,57 +1,120 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>CVAMF.Repository</PackageId>
-    <Version>1.7.0</Version>
-    <Authors>Carlos Vamberto Filho</Authors>
-    <Company>CVAMF</Company>
-    <Description>Generic Repository Pattern implementation for Entity Framework Core with support for filters, pagination, Unit of Work pattern with transaction management, Include (Eager Loading) for related entities, AsNoTracking for performance optimization, Soft Delete with flexible field naming, optional Audit Fields tracking, Multi-Tenancy support with automatic tenant isolation, Caching support (Memory and Redis) with automatic invalidation, Specification Pattern for reusable query logic, Fluent Query Builder for modern query construction, and multiple primary key types (Guid and Int). Compatible with .NET 9.0 and 10.0.</Description>
-    <PackageTags>repository;ef-core;entity-framework;generic-repository;pattern;unit-of-work;transaction;uow;include;eager-loading;asnotracking;performance;soft-delete;audit;audit-trail;tracking;multi-tenancy;tenant;saas;cache;redis;memory-cache;distributed-cache;specification;specification-pattern;query;fluent;query-builder;linq;net9;net10;multi-target</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/carlosvamberto/CVAMF.Repository</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/carlosvamberto/CVAMF.Repository</PackageProjectUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>See RELEASE_NOTES.md for complete version history and feature details.</PackageReleaseNotes>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<PackageId>CVAMF.Repository</PackageId>
+		<Version>1.7.1</Version>
+		<Authors>Carlos Vamberto Filho</Authors>
+		<Company>CVAMF</Company>
+		<Title>Repository Framework for Entity Framework Core - Generic Repository, Unit of Work, Query Builder</Title>
+		<Description>Complete Repository Framework for Entity Framework Core with Fluent Query Builder, Generic Repository Pattern, Unit of Work, Specification Pattern, Multi-Tenancy, Caching (Memory/Redis), Soft Delete, Audit Fields, and LINQ extensions. Build clean, maintainable data access layers with type-safe queries, automatic transaction management, and enterprise features. Perfect for Clean Architecture, DDD, and CQRS patterns. Supports .NET 9.0 and 10.0.</Description>
 
-  <ItemGroup>
-    <None Include="..\README.md" Pack="true" PackagePath="\" />
-    <None Include="..\RELEASE_NOTES.md" Pack="true" PackagePath="\" />
-    <None Include="icon.png" Pack="true" PackagePath="\" />
-  </ItemGroup>
+		<PackageTags>
+			repository-framework;
+			repository;
+			generic-repository;
+			genericrepository;
+			generic-repository-pattern;
+			genericrepositorypattern;
+			repository-pattern;
+			ef-core-repository;
+			efcore-extensions;
+			unit-of-work;
+			uow;
+			query-builder;
+			querybuilder;
+			fluent-query;
+			fluentquery;
+			ef-core;
+			entity-framework;
+			entity-framework-core;
+			entityframework;
+			linq;
+			linq-extensions;
+			clean-architecture;
+			clean-code;
+			ddd;
+			domain-driven-design;
+			cqrs;
+			specification;
+			specification-pattern;
+			specificationpattern;
+			data-access;
+			data-layer;
+			orm;
+			database;
+			crud;
+			aspnetcore;
+			dotnet;
+			dotnet9;
+			dotnet10;
+			pagination;
+			paging;
+			soft-delete;
+			audit;
+			audit-trail;
+			multi-tenancy;
+			multitenancy;
+			tenant;
+			saas;
+			cache;
+			caching;
+			redis;
+			memory-cache;
+			distributed-cache;
+			performance;
+			transaction;
+			async;
+			net9;
+			net10
+		</PackageTags>
 
-  <!-- Common packages for all target frameworks -->
-  <ItemGroup>
-    <PackageReference Include="System.Text.Json" Version="9.0.0" />
-  </ItemGroup>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/carlosvamberto/CVAMF.Repository</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/carlosvamberto/CVAMF.Repository</PackageProjectUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReleaseNotes>See RELEASE_NOTES.md for complete version history and feature details.</PackageReleaseNotes>
+		<Copyright>Copyright (c) 2024 Carlos Vamberto Filho</Copyright>
+	</PropertyGroup>
 
-  <!-- Cache packages for .NET 9.0 -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.0" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" />
+		<None Include="..\RELEASE_NOTES.md" Pack="true" PackagePath="\" />
+		<None Include="icon.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
-  <!-- Cache packages for .NET 10.0 -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.0" />
-  </ItemGroup>
+	<!-- Common packages for all target frameworks -->
+	<ItemGroup>
+		<PackageReference Include="System.Text.Json" Version="9.0.0" />
+	</ItemGroup>
 
-  <!-- EF Core packages for .NET 9.0 -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
-  </ItemGroup>
+	<!-- Cache packages for .NET 9.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.0" />
+	</ItemGroup>
 
-  <!-- EF Core packages for .NET 10.0 -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
-  </ItemGroup>
+	<!-- Cache packages for .NET 10.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.0" />
+	</ItemGroup>
+
+	<!-- EF Core packages for .NET 9.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+	</ItemGroup>
+
+	<!-- EF Core packages for .NET 10.0 -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+	</ItemGroup>
 
 </Project>

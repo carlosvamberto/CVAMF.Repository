@@ -21,6 +21,7 @@ public class MemoryCacheService : ICacheService
     /// <inheritdoc />
     public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var value = _memoryCache.Get<T>(key);
         return Task.FromResult(value);
     }
@@ -33,6 +34,8 @@ public class MemoryCacheService : ICacheService
         TimeSpan? slidingExpiration = null,
         CancellationToken cancellationToken = default) where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var cacheEntryOptions = new MemoryCacheEntryOptions();
 
         if (absoluteExpiration.HasValue)
@@ -60,6 +63,7 @@ public class MemoryCacheService : ICacheService
     /// <inheritdoc />
     public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _memoryCache.Remove(key);
         _keys.TryRemove(key, out _);
         return Task.CompletedTask;
@@ -68,11 +72,14 @@ public class MemoryCacheService : ICacheService
     /// <inheritdoc />
     public Task RemoveByPatternAsync(string? pattern = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(pattern))
         {
             // Remove all keys
             foreach (var key in _keys.Keys.ToList())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 _memoryCache.Remove(key);
                 _keys.TryRemove(key, out _);
             }
@@ -87,6 +94,7 @@ public class MemoryCacheService : ICacheService
 
             foreach (var key in keysToRemove)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 _memoryCache.Remove(key);
                 _keys.TryRemove(key, out _);
             }
@@ -98,6 +106,7 @@ public class MemoryCacheService : ICacheService
     /// <inheritdoc />
     public Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var exists = _memoryCache.TryGetValue(key, out _);
         return Task.FromResult(exists);
     }

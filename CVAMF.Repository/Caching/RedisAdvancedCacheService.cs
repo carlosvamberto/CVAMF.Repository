@@ -27,6 +27,7 @@ public class RedisAdvancedCacheService : ICacheService
     /// <inheritdoc />
     public async Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default) where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var cachedData = await _database.StringGetAsync(key);
 
         if (cachedData.IsNullOrEmpty)
@@ -43,6 +44,8 @@ public class RedisAdvancedCacheService : ICacheService
         TimeSpan? slidingExpiration = null,
         CancellationToken cancellationToken = default) where T : class
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var serializedData = JsonSerializer.Serialize(value, _jsonOptions);
 
         // Redis doesn't support sliding expiration natively, use absolute
@@ -61,18 +64,22 @@ public class RedisAdvancedCacheService : ICacheService
     /// <inheritdoc />
     public async Task RemoveAsync(string key, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         await _database.KeyDeleteAsync(key);
     }
 
     /// <inheritdoc />
     public async Task RemoveByPatternAsync(string? pattern = null, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (string.IsNullOrEmpty(pattern))
         {
             // Clear all keys (use with caution in production!)
             var allEndpoints = _connectionMultiplexer.GetEndPoints();
             foreach (var endpoint in allEndpoints)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var server = _connectionMultiplexer.GetServer(endpoint);
                 await server.FlushDatabaseAsync();
             }
@@ -83,10 +90,12 @@ public class RedisAdvancedCacheService : ICacheService
         var endpoints = _connectionMultiplexer.GetEndPoints();
         foreach (var endpoint in endpoints)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var server = _connectionMultiplexer.GetServer(endpoint);
 
             await foreach (var key in server.KeysAsync(pattern: pattern))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 await _database.KeyDeleteAsync(key);
             }
         }
@@ -95,6 +104,7 @@ public class RedisAdvancedCacheService : ICacheService
     /// <inheritdoc />
     public async Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         return await _database.KeyExistsAsync(key);
     }
 
