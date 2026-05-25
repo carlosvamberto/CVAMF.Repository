@@ -1,5 +1,26 @@
 # CVAMF.Repository - Release Notes
 
+## v1.7.2
+- 🐛 **Bug Fix**: CancellationToken usage in caching services
+  - Fixed `MemoryCacheService` to properly use `CancellationToken` in all async methods
+  - Fixed `RedisAdvancedCacheService` to properly use `CancellationToken` in all async methods
+  - Added `cancellationToken.ThrowIfCancellationRequested()` checks for proper cancellation support
+  - Improved cancellation support in loops (RemoveByPatternAsync)
+  - Enhanced application responsiveness and cancellation support
+  - Note: `RedisCacheService` already had correct CancellationToken usage
+
+## v1.7.1
+- 🔍 **Improved NuGet Discoverability**: Enhanced package metadata for better search results
+  - Added `Title` property: "Repository Framework for Entity Framework Core"
+  - Expanded `Description` with key search terms (Repository Framework, Query Builder, Clean Architecture, DDD, CQRS)
+  - Enhanced `PackageTags` with 50+ relevant tags including:
+    - `repository-framework`, `ef-core-repository`, `fluent-query`
+    - `clean-architecture`, `domain-driven-design`, `data-access`
+    - `dotnet9`, `dotnet10`, `efcore-extensions`, `linq-extensions`
+  - Added `Copyright` information
+  - Added `RepositoryType` (git)
+  - Improved metadata for NuGet.org search ranking
+
 ## v1.7.0
 - 🔍 **Fluent Query Builder**: Modern, fluent API for building complex queries
   - `Query()` method for starting fluent queries
